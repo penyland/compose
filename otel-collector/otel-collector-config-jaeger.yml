@@ -16,12 +16,6 @@ exporters:
   #   tls:
   #     insecure: true
 
-  # otlp/tempo-traces:
-  #   endpoint: tempo:4317
-  #   tls:
-  #     insecure: true
-
-
 # Data sources: traces
   otlp/jaeger:
     endpoint: http://jaeger:4317
@@ -35,7 +29,6 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      #exporters: [otlp/tempo-traces, otlp/jaeger]
       exporters: [otlp/jaeger]
     #logs:
       #receivers: [otlp]

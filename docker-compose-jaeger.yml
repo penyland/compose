@@ -1,0 +1,74 @@
+version: "3.8"
+
+volumes:
+  prometheus_data: {}
+  grafana_data: {}
+
+# Networks
+networks:
+  default:
+    driver: bridge
+
+# Services
+services:
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    networks:
+      - default
+    ports:
+      - "3000:3000"
+    user: "472"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+      - ./grafana/provisioning/datasources/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yaml
+      - ./grafana/provisioning/datasources/jaeger.yml:/etc/grafana/provisioning/datasources/jaeger.yaml
+    environment:
+      GF_INSTALL_PLUGINS: "grafana-clock-panel,grafana-simple-json-datasource,grafana-worldmap-panel,grafana-piechart-panel"
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: always
+    volumes:
+      - ./prometheus:/etc/prometheus/
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--web.enable-remote-write-receiver"
+      - "--log.level=debug"
+    ports:
+      - 9090:9090
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: jaeger
+    networks:
+      - default
+    environment:
+      - COLLECTOR_ZIPKIN_HTTP_PORT=:9411
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - 16686:16686
+      - 14250:14250
+
+  otel-collector:
+    # using contrib so it includes the loki exporter and service graph exporter
+    image: otel/opentelemetry-collector-contrib:latest
+    hostname: otel-collector
+    container_name: otel-collector-jaeger
+    command: --config=/etc/otel-collector-config.yml
+    volumes:
+      - ./otel-collector/otel-collector-config-jaeger.yml:/etc/otel-collector-config.yml:ro
+    ports:
+      # - 8888:8888 # Prometheus metrics exposed by the Collector
+      - 8889:8889 # Prometheus exporter metrics
+      - 4317:4317 # OTLP gRPC receiver
+      #- 4318:4318 # OTLP HTTP receiver

@@ -24,12 +24,15 @@ services:
     user: "472"
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+      - ./grafana/provisioning/datasources/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yaml
+      - ./grafana/provisioning/datasources/tempo.yml:/etc/grafana/provisioning/datasources/tempo.yaml
     environment:
       GF_INSTALL_PLUGINS: "grafana-clock-panel,grafana-simple-json-datasource,grafana-worldmap-panel,grafana-piechart-panel"
 
   prometheus:
     image: prom/prometheus:latest
+    container_name: prometheus
     restart: always
     volumes:
       - ./prometheus:/etc/prometheus/
@@ -44,25 +47,26 @@ services:
     ports:
       - 9090:9090
 
-  jaeger:
-    image: jaegertracing/all-in-one:latest
+  tempo:
+    image: grafana/tempo:latest
+    container_name: tempo
+    command: [ "-config.file=/etc/tempo.yaml" ]
+    restart: unless-stopped
     networks:
       - default
-    environment:
-      - COLLECTOR_ZIPKIN_HTTP_PORT=:9411
-      - COLLECTOR_OTLP_ENABLED=true
+    volumes:
+      - ./tempo/tempo.yaml:/etc/tempo.yaml
     ports:
-      - 16686:16686
-      - 14250:14250
+      - "3200:3200"
 
   otel-collector:
     # using contrib so it includes the loki exporter and service graph exporter
     image: otel/opentelemetry-collector-contrib:latest
-    hostname: otel-collector
+    hostname: otel-collector-tempo
     container_name: otel-collector
     command: --config=/etc/otel-collector-config.yml
     volumes:
-      - ./otel-collector/otel-collector-config.yml:/etc/otel-collector-config.yml:ro
+      - ./otel-collector/otel-collector-config-tempo.yml:/etc/otel-collector-config.yml:ro
     ports:
       # - 8888:8888 # Prometheus metrics exposed by the Collector
       - 8889:8889 # Prometheus exporter metrics
